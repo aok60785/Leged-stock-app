@@ -107,12 +107,26 @@ if ticker_code:
         latest = df_calc.iloc[-1]
         yesterday = df_calc.iloc[-2] if len(df_calc) > 1 else latest
         
-        info = stock.info
-        fetched_name = info.get('shortName') or info.get('longName')
+        # =====================================================================
+        # 🛡️ 【API 限流熔斷防禦】防止 Streamlit 雲端共用 IP 遭到 Yahoo 封鎖
+        # =====================================================================
+        info = {}
+        fetched_name = None
+        
+        try:
+            # 嘗試抓取 info，如果被 yfinance 限流鎖 IP 就在此處攔截，不讓 App 閃退
+            info = stock.info
+            if isinstance(info, dict):
+                fetched_name = info.get('shortName') or info.get('longName')
+        except Exception as e:
+            # 雲端被鎖 IP 時，在後台留個紀錄，前端不噴紅字
+            fetched_name = None
+            
+        # 智慧名稱拼裝防禦
         stock_display_title = f"{fetched_name} ({ticker_code})" if fetched_name else f"{market} - {raw_code.strip()}"
         st.subheader(f"📊 交易數據看板 ➔ {stock_display_title}")
         
-        # 數據看板排版 (Metrics)
+        # 數據看板排版 (Metrics) - 全面改用安全 get 語法
         prev_close = df_raw['Close'].iloc[-2] if len(df_raw) > 1 else latest['Close']
         change_val = latest['Close'] - prev_close
         change_pct = (change_val / prev_close) * 100
@@ -120,8 +134,14 @@ if ticker_code:
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("最新收盤價 (Close)", f"{latest['Close']:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
         m2.metric("今日成交量", f"{int(latest['Volume']):,}")
-        m3.metric("本益比 (PE Ratio)", f"{info.get('trailingPE', 'N/A') if info.get('trailingPE') else 'N/A'}")
-        m4.metric("股價淨值比 (PB Ratio)", f"{info.get('priceToBook', 'N/A') if info.get('priceToBook') else 'N/A'}")
+        
+        # 如果 info 有被鎖，本益比與淨值比就優雅地顯示 'N/A'，絕不閃退
+        pe_ratio = info.get('trailingPE') if isinstance(info, dict) else None
+        pb_ratio = info.get('priceToBook') if isinstance(info, dict) else None
+        
+        m3.metric("本益比 (PE Ratio)", f"{pe_ratio:.2f}" if pe_ratio else "N/A")
+        m4.metric("股價淨值比 (PB Ratio)", f"{pb_ratio:.2f}" if pb_ratio else "N/A")
+        # =====================================================================
         
         # Plotly 智慧多線圖 (加入布林通道讓圖表層次更強)
         slice_dict = {"5d":5, "1mo":20, "3mo":60, "6mo":120, "1y":240}
