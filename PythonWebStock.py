@@ -19,7 +19,7 @@ st.sidebar.header("🎯 1. 常用股票群組選單")
 
 # 📥 【主管專屬核心配置區】你和朋友的清單直接在這裡分開寫死
 cascading_stock_pool = {
-    "👤 短中線查詢": {
+    "🔥 短中線查詢": {
         "自訂輸入 (手動輸入代碼)": "CUSTOM",        
         "野村臺灣科技 (00935.TW)": "00935.TW",
         "統一台灣主動 (00981A.TW)": "00981A.TW",
@@ -30,13 +30,17 @@ cascading_stock_pool = {
     },
     "👥 蘇大衛用清單": {
         "自訂輸入 (手動輸入代碼)": "CUSTOM",
-        "微軟 (MSFT)": "MSFT",
+        "Nebius Group NV (NBIS)": "NBIS",
         "輝達 (NVDA)": "NVDA",
         "Alphabet (Google)": "GOOG",
+        "台積電ADR (TSM)": "TSM",
         "Spac (SPCX)": "SPCX",
+        "Ondas (ONDS)": "ONDS",
+        "Red Cat  (RCAT)": "RCAT",
+        "CoreWeave (CRWV)": "CRWV",
         "追蹤標普500 (VOO)": "VOO"
     },
-    "🔥 長線查詢": {
+    "👤 長線查詢": {
         "自訂輸入 (手動輸入代碼)": "CUSTOM",
         "台積電 (2330.TW)": "2330.TW",
         "群益高股息 (00919.TW)": "00919.TW",
@@ -302,7 +306,7 @@ if ticker_code:
         # 4. 新手指標診斷大教室 (全數據回歸防撞車版)
         # ==========================================
         st.write("---")
-        st.write("## 🎓 全方位量化指標精細診斷與白話文教學")
+        st.write("## 🎓 量化指標診斷與介紹")
         
         col_left, col_right = st.columns(2)
         
