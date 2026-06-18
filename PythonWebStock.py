@@ -8,8 +8,8 @@ import pytz  # 🌍 全球多市場動態時區核心庫
 # ==========================================
 # 0. 網頁基礎配置
 # ==========================================
-st.set_page_config(page_title="全球量化儀表板 v7.0", layout="wide")
-st.title("🚀 全球股票量化分析儀表板 v7.0")
+st.set_page_config(page_title="全球量化儀表板 v7.1", layout="wide")
+st.title("🚀 全球股票量化分析儀表板 v7.1")
 st.markdown("本系統 **數據為yfinance提供**，技術指標分析 **僅供參考**！")
 
 # ==========================================
@@ -190,20 +190,23 @@ if ticker_code:
         yesterday = df_calc.iloc[-2] if len(df_calc) > 1 else latest
         
         # ==========================================
-        # 📊 核心風控指標手刻運算區 (嚴謹1年熔斷防線)
+        # 📊 核心五大風控指標手刻運算區 (V7.1 雙指標重裝升級)
         # ==========================================
         annual_volatility = None
         annual_sharpe = None
+        annual_sortino = None
+        max_drawdown = None
         sample_years_label = "1年期"
         has_enough_data = True
         
         if not df_risk_raw.empty:
             total_days = len(df_risk_raw)
             
-            # 🛡️ 判定是否為「未滿 1 年的小鮮肉股」，少於 200 天直接封鎖長線指標
+            # 🛡️ 1年內防呆：未滿 200 天（約1年）直接判定資料不足，拒絕盲目計算
             if total_days < 200:
                 has_enough_data = False
             else:
+                # 🛡️ 3年與5年動態降級判定
                 if total_days >= 1200:
                     df_target = df_risk_raw
                     sample_years_label = "5年期"
@@ -215,20 +218,37 @@ if ticker_code:
                     sample_years_label = "1年期"
                     
                 try:
-                    # 執行國際標準化年化風控運算
                     risk_returns = df_target['Close'].pct_change().dropna()
                     avg_daily_return = risk_returns.mean()
                     daily_std = risk_returns.std()
                     
-                    # 年化標準差 (波動度)
+                    # 1. 年化標準差 (總波動度)
                     annual_volatility = daily_std * np.sqrt(252) * 100
                     
-                    # 國際標準年化夏普比率 (扣除台灣定存 1.5% 無風險利率常數)
+                    # 定存日化無風險利率常數 (1.5% / 252)
+                    daily_rf = 0.015 / 252
+                    
+                    # 2. 國際標準年化夏普比率
                     if daily_std > 0:
-                        daily_rf = 0.015 / 252
                         annual_sharpe = ((avg_daily_return - daily_rf) / daily_std) * np.sqrt(252)
                     else:
                         annual_sharpe = 0.0
+                        
+                    # 3. 手刻年化索提諾比率 (Sortino) ➔ 只對小於無風險利率的下行風險進行懲罰
+                    downside_returns = risk_returns[risk_returns < daily_rf]
+                    if len(downside_returns) > 0:
+                        # 計算下行標準差 (分母)
+                        downside_std = np.sqrt(np.mean((downside_returns - daily_rf)**2))
+                        annual_sortino = ((avg_daily_return - daily_rf) / downside_std) * np.sqrt(252) if downside_std > 0 else 0
+                    else:
+                        annual_sortino = 0.0
+                        
+                    # 4. 手刻歷史最大回撤 (Maximum Drawdown, MDD)
+                    # 利用累積最高點計算回撤比率
+                    cumulative_max = df_target['Close'].cummax()
+                    drawdown = (df_target['Close'] - cumulative_max) / cumulative_max
+                    max_drawdown = drawdown.min() * 100  # 轉成負百分比
+                    
                 except Exception:
                     pass
 
@@ -271,17 +291,22 @@ if ticker_code:
             ev4.metric("本益成長比 (PEG)", f"{peg_ratio:.2f}" if peg_ratio else "N/A", help="低於1代表高成長支撐高本益比，股價並不算貴。")
 
         with c_risk:
-            st.write(f"### 🛡️ 長線風險控網 ({sample_years_label if has_enough_data else '未滿1年多空歷史'})")
+            st.write(f"### 🛡️ 長線風險控網 ({sample_years_label if has_enough_data else '未滿1年歷史'})")
             
             if not has_enough_data:
                 st.info("ℹ️ **該標的上市未滿 1 年**：歷史樣本數不足，長線風險指標不具統計參考價值，系統已自動啟動防護性留白。")
             else:
-                rv1, rv2, rv3 = st.columns(3)
+                # 🥊 擴建為 5 欄位無懈可擊大看盤佈局
+                rv1, rv2, rv3, rv4, rv5 = st.columns(5)
                 beta_val = info.get('beta') if isinstance(info, dict) else None
                 
-                rv1.metric("Beta 震盪係數", f"{beta_val:.2f}" if beta_val else "N/A", help="大盤震盪度為 1。高於 1 代表比大盤更活潑、波動更大。")
-                rv2.metric("年化波動度 (標準差)", f"{annual_volatility:.1f}%" if annual_volatility else "N/A", help=f"這檔股票在過去{sample_years_label}經歷多空大洗牌時的總體風險脾氣。")
-                rv3.metric("夏普比率 (Sharpe)", f"{annual_sharpe:.2f}" if annual_sharpe else "N/A", help=f"這檔股票跨越{sample_years_label}長線循環後的風險CP值。")
+                rv1.metric("Beta 震盪", f"{beta_val:.2f}" if beta_val else "N/A", help="大盤震盪度為 1。高於 1 代表比大盤更活潑、波動更大。")
+                rv2.metric("年化波動", f"{annual_volatility:.1f}%" if annual_volatility else "N/A", help=f"這檔股票在過去{sample_years_label}經歷多空大洗牌時的總體風險波動。")
+                rv3.metric("夏普 (Sharpe)", f"{annual_sharpe:.2f}" if annual_sharpe else "N/A", help=f"這檔股票跨越{sample_years_label}長線循環後的風險CP值。")
+                # 🟢 全新指標 1 注入
+                rv4.metric("索提諾 (Sortino)", f"{annual_sortino:.2f}" if annual_sortino else "N/A", help="下行風險CP值。剔除了「向上大漲」的波動，只計算「下跌虧損」的真實防禦力。數值越高代表大漲小回的體質越純正。")
+                # 🟢 全新指標 2 注入
+                rv5.metric("最大回撤 (MDD)", f"{max_drawdown:.1f}%" if max_drawdown else "N/A", help="歷史最慘虧損。指過去這段時間從歷史最高點摔到波段最低點的最大跌幅，用來測試投資人的心臟極限。")
 
         # Plotly 智慧多線圖
         slice_dict = {"5d":5, "1mo":20, "3mo":60, "6mo":120, "1y":240}
